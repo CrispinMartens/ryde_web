@@ -5,12 +5,45 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    router.push("/dashboard");
+    setError("");
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (res.ok) {
+        router.push("/dashboard");
+      } else {
+        const data = await res.json();
+        setError(data.error || "Something went wrong. Please try again.");
+      }
+    } catch {
+      setError("Unable to connect. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -20,13 +53,11 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold tracking-tight text-white">
             RYDE
           </h1>
-          <p className="mt-2 text-sm text-zinc-400">
-            Sign in to your account
-          </p>
+          <p className="mt-2 text-sm text-zinc-400">Sign in to your account</p>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <div>
               <label
                 htmlFor="email"
@@ -39,6 +70,8 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-white/25 focus:ring-1 focus:ring-white/25"
               />
             </div>
@@ -56,6 +89,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 pr-11 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-white/25 focus:ring-1 focus:ring-white/25"
                 />
                 <button
@@ -72,18 +107,30 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {error && (
+              <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2.5">
+                {error}
+              </p>
+            )}
+
             <div className="flex items-center justify-between text-sm">
-              <a href="/login/forgot-password" className="text-zinc-400 hover:text-white transition-colors">
+              <a
+                href="/login/forgot-password"
+                className="text-zinc-400 hover:text-white transition-colors"
+              >
                 Forgot password?
               </a>
             </div>
 
             <button
               type="submit"
-              className="group flex w-full items-center justify-center gap-2 rounded-lg bg-[#e20000] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#c00] active:scale-[0.98]"
+              disabled={loading}
+              className="group flex w-full items-center justify-center gap-2 rounded-lg bg-[#e20000] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#c00] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
-              Sign in
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              {loading ? "Signing in…" : "Sign in"}
+              {!loading && (
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              )}
             </button>
           </form>
         </div>
