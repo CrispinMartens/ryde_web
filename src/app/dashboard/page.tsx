@@ -380,7 +380,7 @@ export default function DashboardPage() {
     // ── h1: split into chars inside word wrappers ──
     // "words,chars" creates word-level spans that we mark nowrap so the browser
     // cannot break mid-word (e.g. "Bon" / "d") between the individual char spans.
-    const splitH1 = new SplitText(h1, { type: "words,chars", aria: false });
+    const splitH1 = new SplitText(h1, { type: "words,chars", aria: "none" });
     splits.push(splitH1);
     splitH1.words.forEach((w) => ((w as HTMLElement).style.whiteSpace = "nowrap"));
     wrapLines(splitH1.chars, true); // inline overflow:hidden wrapper per char
@@ -395,7 +395,7 @@ export default function DashboardPage() {
     // ── body: split into lines, slide up ──
     let splitBody: InstanceType<typeof SplitText> | null = null;
     if (body) {
-      splitBody = new SplitText(body, { type: "lines", aria: false });
+      splitBody = new SplitText(body, { type: "lines", aria: "none" });
       splits.push(splitBody);
       wrapLines(splitBody.lines);
       gsap.set(splitBody.lines, { y: "110%", force3D: true });

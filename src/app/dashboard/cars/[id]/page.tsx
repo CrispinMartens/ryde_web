@@ -279,7 +279,7 @@ export default function CarDetailPage({
     // Left panel h1 — char flip-in (same as dashboard hero)
     // "words,chars" + nowrap on word spans prevents mid-word line breaks.
     if (detailH1Ref.current) {
-      splitH1 = new SplitText(detailH1Ref.current, { type: "words,chars", aria: false });
+      splitH1 = new SplitText(detailH1Ref.current, { type: "words,chars", aria: "none" });
       splits.push(splitH1);
       splitH1.words.forEach((w) => ((w as HTMLElement).style.whiteSpace = "nowrap"));
       wrapLines(splitH1.chars, true);
@@ -288,7 +288,7 @@ export default function CarDetailPage({
 
     // Left panel description — lines slide up
     if (detailDescRef.current) {
-      splitDesc = new SplitText(detailDescRef.current, { type: "lines", aria: false });
+      splitDesc = new SplitText(detailDescRef.current, { type: "lines", aria: "none" });
       splits.push(splitDesc);
       wrapLines(splitDesc.lines);
       gsap.set(splitDesc.lines, { y: "110%", force3D: true });
@@ -296,7 +296,7 @@ export default function CarDetailPage({
 
     // Booking panel h2 — words slide up with fade
     if (bookingH2Ref.current) {
-      splitBookingH2 = new SplitText(bookingH2Ref.current, { type: "words", aria: false });
+      splitBookingH2 = new SplitText(bookingH2Ref.current, { type: "words", aria: "none" });
       splits.push(splitBookingH2);
       wrapLines(splitBookingH2.words, true);
       gsap.set(splitBookingH2.words, { y: "60%", opacity: 0, force3D: true });
@@ -304,7 +304,7 @@ export default function CarDetailPage({
 
     // Booking panel sub-paragraph — lines slide up
     if (bookingSubRef.current) {
-      splitBookingSub = new SplitText(bookingSubRef.current, { type: "lines", aria: false });
+      splitBookingSub = new SplitText(bookingSubRef.current, { type: "lines", aria: "none" });
       splits.push(splitBookingSub);
       wrapLines(splitBookingSub.lines);
       gsap.set(splitBookingSub.lines, { y: "110%", force3D: true });
