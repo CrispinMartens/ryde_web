@@ -6,10 +6,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Calendar,
-  Gauge,
-  Fuel,
-  Settings,
   ChevronRight,
   LoaderCircle,
   CheckCircle2,
@@ -85,25 +81,6 @@ const DAY_LABELS: Record<string, string> = {
 /*  Sub-components                                                      */
 /* ------------------------------------------------------------------ */
 
-function SpecItem({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="text-white/40 mt-0.5">{icon}</div>
-      <div>
-        <p className="text-[13px] text-white/40 uppercase tracking-wider">{label}</p>
-        <p className="text-[16px] text-white font-medium">{value}</p>
-      </div>
-    </div>
-  );
-}
 
 function DayTimeRow({
   day,
@@ -576,8 +553,8 @@ export default function CarDetailPage({
             <div className="absolute inset-0">
               <LiveMapTrackerComponent
                 ref={mapRef}
-                initialLat={activeBooking.lat}
-                initialLon={activeBooking.lon}
+                initialLat={activeBooking.lat!}
+                initialLon={activeBooking.lon!}
               />
               {/* Car name gradient overlay at bottom */}
               <div className="absolute bottom-0 left-0 right-0 px-10 pt-24 pb-10 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none">
@@ -590,41 +567,66 @@ export default function CarDetailPage({
               </div>
             </div>
           ) : (
+            /* ── Swiss Grid layout ── */
             <div
               ref={leftContentRef}
-              className="flex flex-col items-center justify-center h-full px-16"
+              className="flex flex-col h-full pl-14 pr-10 pt-20 pb-10 overflow-hidden"
             >
-              {/* Car image */}
-              <div data-stagger className="relative w-[560px] h-[200px] mb-10">
+              {/* Zone 1 — headline */}
+              <div className="flex items-end justify-between pt-4 pb-6">
+                <div>
+                  <p data-stagger className="text-[10px] uppercase tracking-[0.35em] text-white/40 mb-4">
+                    {car.subtitle}
+                  </p>
+                  <h1 ref={detailH1Ref} className="text-[76px] font-britanica leading-[0.9] tracking-tight">
+                    {car.name}
+                  </h1>
+                </div>
+                <p data-stagger className="text-[11px] uppercase tracking-[0.25em] text-white/25 pb-2">
+                  {car.year}
+                </p>
+              </div>
+
+              {/* Zone 2 — car image (expands to fill remaining space) */}
+
+              <div data-stagger className="relative flex-1 min-h-0 my-6">
                 <Image
                   src={car.image}
                   alt={car.name}
                   fill
-                  className="object-contain"
+                  unoptimized={car.image.includes("car-range-rover-green.png")}
+                  className="object-contain object-center"
                   priority
                 />
               </div>
 
-              <div className="w-full max-w-[520px]">
-                <p data-stagger className="text-[16px] text-white/50 uppercase tracking-widest mb-2">
-                  {car.subtitle}
-                </p>
-                <h1 ref={detailH1Ref} className="text-[52px] font-britanica leading-[1.1] mb-6">
-                  {car.name}
-                </h1>
+              {/* Zone 3 — rule + 4-column spec bar */}
+              <div data-stagger className="w-full h-px bg-white/20" />
 
-                {/* Specs */}
-                <div data-stagger className="grid grid-cols-2 gap-5 mb-8">
-                  <SpecItem icon={<Calendar className="w-5 h-5" />} label="Year" value={car.year} />
-                  <SpecItem icon={<Gauge className="w-5 h-5" />} label="Power" value={car.power} />
-                  <SpecItem icon={<Fuel className="w-5 h-5" />} label="Engine" value={car.engine} />
-                  <SpecItem icon={<Settings className="w-5 h-5" />} label="Transmission" value={car.transmission} />
-                </div>
-
-                <p ref={detailDescRef} className="text-[15px] leading-[1.75] text-white/65">
-                  {car.description}
-                </p>
+              <div data-stagger className="grid grid-cols-4 pt-6 pb-7">
+                {[
+                  { label: "Year",         value: car.year         },
+                  { label: "Power",        value: car.power        },
+                  { label: "Engine",       value: car.engine       },
+                  { label: "Transmission", value: car.transmission },
+                ].map((spec, i) => (
+                  <div key={spec.label} className={i > 0 ? "pl-5 border-l border-white/15" : ""}>
+                    <p className="text-[9px] uppercase tracking-[0.25em] text-white/35 mb-2">
+                      {spec.label}
+                    </p>
+                    <p className="text-[15px] font-medium text-white leading-none">
+                      {spec.value}
+                    </p>
+                  </div>
+                ))}
               </div>
+
+              {/* Zone 4 — rule + description */}
+              <div data-stagger className="w-full h-px bg-white/20" />
+
+              <p ref={detailDescRef} className="text-[13px] leading-[1.8] text-white/50 pt-6 max-w-[520px]">
+                {car.description}
+              </p>
             </div>
           )}
         </div>
