@@ -6,6 +6,8 @@ import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { Observer } from "gsap/dist/Observer";
+import { CustomEase } from "gsap/dist/CustomEase";
+import { SplitText } from "gsap/dist/SplitText";
 import {
   type Car,
   type ActiveBooking,
@@ -17,11 +19,21 @@ import {
   activeBookingIds,
 } from "@/lib/cars";
 
-gsap.registerPlugin(Observer);
+gsap.registerPlugin(Observer, CustomEase, SplitText);
+
+// Codrops-sourced custom ease — signature cubic-bezier for page transitions
+const RYDE_EASE = CustomEase.create(
+  "rydeEase",
+  "M0,0 C0.38,0.05 0.48,0.58 0.65,0.82 0.82,1 1,1 1,1"
+);
 
 // Persists across client-side navigations so the skeleton only shows on the
 // very first load (or after a hard refresh). Module scope survives remounts.
 let _dashboardLoaded = false;
+
+function isRangeRoverGreenAsset(src: string): boolean {
+  return src.includes("car-range-rover-green.png");
+}
 
 const navLinks = [
   "Start",
@@ -30,6 +42,49 @@ const navLinks = [
   "Insights",
   "Concierge",
 ];
+
+/* ------------------------------------------------------------------ */
+/*  NavLink — codrops sliding underline hover                          */
+/* ------------------------------------------------------------------ */
+
+function NavLink({ label, active }: { label: string; active: boolean }) {
+  const lineRef = useRef<HTMLSpanElement>(null);
+
+  function handleEnter() {
+    const line = lineRef.current;
+    if (!line || active) return;
+    gsap.set(line, { x: "-101%" });
+    gsap.killTweensOf(line);
+    gsap.to(line, { x: "0%", duration: 0.8, ease: "power3.out" });
+  }
+
+  function handleLeave() {
+    const line = lineRef.current;
+    if (!line || active) return;
+    gsap.killTweensOf(line);
+    gsap.to(line, { x: "101%", duration: 0.5, ease: "power3.out" });
+  }
+
+  return (
+    <button
+      className={`relative px-6 h-12 flex items-center text-[16px] text-white ${
+        active ? "font-medium" : "font-normal"
+      }`}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      {label}
+      {/* Underline track — overflow hidden clips the sliding span */}
+      <span className="absolute bottom-0 left-6 right-6 h-[2px] overflow-hidden pointer-events-none">
+        <span
+          ref={lineRef}
+          className="absolute inset-0 bg-white"
+          style={{ transform: active ? "translateX(0%)" : "translateX(-101%)" }}
+        />
+      </span>
+    </button>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton helpers                                                    */
@@ -114,6 +169,7 @@ function ActiveBookingCard({
   const speedRef = useRef<HTMLSpanElement>(null);
   const coordsRef = useRef<HTMLParagraphElement>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const isRangeRoverImage = isRangeRoverGreenAsset(car.image);
 
   // Live coordinate drift — moves the position based on speed each tick
   useEffect(() => {
@@ -191,7 +247,10 @@ function ActiveBookingCard({
             src={car.image}
             alt={car.name}
             fill
-            className={`object-contain transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+            unoptimized={isRangeRoverImage}
+            className={`object-contain transition-opacity duration-300 ${
+              isRangeRoverImage ? "scale-[1.04]" : ""
+            } ${imgLoaded ? "opacity-100" : "opacity-0"}`}
             onLoad={() => setImgLoaded(true)}
           />
         </div>
@@ -266,6 +325,12 @@ export default function DashboardPage() {
   const [loaded, setLoaded] = useState(_dashboardLoaded);
   const router = useRouter();
 
+  // Hero element refs for SplitText animations
+  const heroEyebrowRef = useRef<HTMLParagraphElement>(null);
+  const heroH1Ref = useRef<HTMLHeadingElement>(null);
+  const heroBodyRef = useRef<HTMLParagraphElement>(null);
+  const heroButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 0);
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -280,6 +345,102 @@ export default function DashboardPage() {
     }, 1500);
     return () => clearTimeout(t);
   }, []);
+
+  // ── Codrops-style hero text entry (runs once content is ready) ──
+  useEffect(() => {
+    if (!loaded) return;
+
+    const eyebrow = heroEyebrowRef.current;
+    const h1 = heroH1Ref.current;
+    const body = heroBodyRef.current;
+    const btn = heroButtonRef.current;
+
+    if (!h1) return;
+
+    const splits: InstanceType<typeof SplitText>[] = [];
+    // Track DOM wrappers we inject so we can clean them up
+    const wrappers: HTMLElement[] = [];
+
+    // Wraps each element in an overflow:hidden container so displaced
+    // children are clipped before they animate into view (codrops pattern).
+    function wrapLines(lines: Element[], inline = false) {
+      lines.forEach((line) => {
+        const wrap = document.createElement(inline ? "span" : "div");
+        wrap.style.cssText = inline
+          ? "display:inline-block;overflow:hidden;line-height:1;vertical-align:bottom;"
+          : "overflow:hidden;line-height:inherit;";
+        line.parentNode?.insertBefore(wrap, line);
+        wrap.appendChild(line);
+        wrappers.push(wrap);
+      });
+    }
+
+    // ── h1: split into chars inside word wrappers ──
+    // "words,chars" creates word-level spans that we mark nowrap so the browser
+    // cannot break mid-word (e.g. "Bon" / "d") between the individual char spans.
+    const splitH1 = new SplitText(h1, { type: "words,chars", aria: false });
+    splits.push(splitH1);
+    splitH1.words.forEach((w) => ((w as HTMLElement).style.whiteSpace = "nowrap"));
+    wrapLines(splitH1.chars, true); // inline overflow:hidden wrapper per char
+    // transformPerspective on each char avoids needing preserve-3d on wrappers
+    gsap.set(splitH1.chars, {
+      y: "100%",
+      rotateX: 60,
+      transformPerspective: 800,
+      force3D: true,
+    });
+
+    // ── body: split into lines, slide up ──
+    let splitBody: InstanceType<typeof SplitText> | null = null;
+    if (body) {
+      splitBody = new SplitText(body, { type: "lines", aria: false });
+      splits.push(splitBody);
+      wrapLines(splitBody.lines);
+      gsap.set(splitBody.lines, { y: "110%", force3D: true });
+    }
+
+    if (eyebrow) gsap.set(eyebrow, { y: 20, opacity: 0 });
+    if (btn) gsap.set(btn, { y: 16, opacity: 0 });
+
+    const tl = gsap.timeline({ defaults: { force3D: true } });
+
+    // Eyebrow fades + slides up
+    if (eyebrow) {
+      tl.to(eyebrow, { y: 0, opacity: 1, duration: 0.9, ease: "power3.out" }, 0);
+    }
+
+    // h1 chars flip in — rotateX + y, staggered per-char (codrops: 0.035s)
+    tl.to(
+      splitH1.chars,
+      { y: 0, rotateX: 0, duration: 2.1, stagger: 0.035, ease: "expo.out" },
+      0.15
+    );
+
+    // Body lines slide up — stagger from end (codrops pattern)
+    if (splitBody) {
+      tl.to(
+        splitBody.lines,
+        {
+          y: 0,
+          duration: 1.65,
+          stagger: { amount: 0.08, from: "end" },
+          ease: "power3.out",
+        },
+        0.52
+      );
+    }
+
+    // Button slides + fades in
+    if (btn) {
+      tl.to(btn, { y: 0, opacity: 1, duration: 0.7, ease: RYDE_EASE }, 0.7);
+    }
+
+    return () => {
+      tl.kill();
+      // revert() restores original innerHTML, removing all injected wrappers
+      splits.forEach((s) => s.revert());
+    };
+  }, [loaded]);
 
   function handleCardClick(car: Car, el: HTMLDivElement) {
     const rect = el.getBoundingClientRect();
@@ -339,17 +500,7 @@ export default function DashboardPage() {
         {/* Nav links — absolutely centered so they're always in the middle */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
           {navLinks.map((link, i) => (
-            <button
-              key={link}
-              className={`relative px-6 h-12 flex items-center text-[16px] text-white ${
-                i === 0 ? "font-medium" : "font-normal opacity-60 hover:opacity-100 transition-opacity"
-              }`}
-            >
-              {link}
-              {i === 0 && (
-                <span className="absolute bottom-0 left-6 right-6 h-[2px] bg-white" />
-              )}
-            </button>
+            <NavLink key={link} label={link} active={i === 0} />
           ))}
         </div>
 
@@ -376,7 +527,7 @@ export default function DashboardPage() {
         <div className="absolute bottom-0 left-0 right-0 h-[280px] bg-gradient-to-t from-[#222] to-transparent" />
 
         {/* Content — bottom-anchored, aligned with navbar */}
-        <div className="relative z-10 h-full flex flex-col justify-end pl-[68px] pb-[130px]">
+        <div className="relative z-10 h-full flex flex-col justify-end pl-[68px] pb-[240px]">
           {!loaded ? (
             <div className="space-y-5">
               <Skeleton className="h-[20px] w-[160px]" />
@@ -388,19 +539,19 @@ export default function DashboardPage() {
             </div>
           ) : (
             <>
-              <p className="text-[16px] leading-[1.6] text-white/55 mb-2 uppercase tracking-[0.18em]">
+              <p ref={heroEyebrowRef} className="text-[16px] leading-[1.6] text-white/55 mb-2 uppercase tracking-[0.18em]">
                 RYDE Exclusives
               </p>
-              <h1 className="text-[80px] leading-[88px] font-britanica tracking-tight mb-5 max-w-[720px]">
+              <h1 ref={heroH1Ref} className="text-[80px] leading-[88px] font-britanica tracking-tight mb-5 max-w-[720px]">
                 The James Bond Collection
               </h1>
-              <p className="text-[18px] leading-[1.7] max-w-[560px] text-white/70 mb-10">
+              <p ref={heroBodyRef} className="text-[18px] leading-[1.7] max-w-[560px] text-white/70 mb-10">
                 Ever imagined stepping into James Bond&apos;s shoes? With RYDE, you
                 don&apos;t imagine, you drive. Experience the cars made famous by 007.
                 <br />
                 <span className="text-white/40">April 20 &ndash; May 22, 2026.</span>
               </p>
-              <button className="flex items-center gap-2.5 bg-[#e20000] text-white text-[16px] font-medium px-8 h-[52px] rounded-full w-fit">
+              <button ref={heroButtonRef} className="flex items-center gap-2.5 bg-[#e20000] text-white text-[16px] font-medium px-8 h-[52px] rounded-full w-fit">
                 Explore
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -410,7 +561,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Drag Parallax Slider */}
-      <div className="-mt-[80px] relative z-10">
+      <div className="-mt-[200px] relative z-10">
         {!loaded ? (
           <section className="px-[53px]">
             <div className="flex gap-[28px]">
@@ -509,6 +660,7 @@ function CarCard({
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const divRef = useRef<HTMLDivElement>(null);
+  const isRangeRoverImage = isRangeRoverGreenAsset(car.image);
 
   return (
     <div
@@ -524,7 +676,10 @@ function CarCard({
           src={car.image}
           alt={car.name}
           fill
-          className={`object-contain transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+          unoptimized={isRangeRoverImage}
+          className={`object-contain transition-opacity duration-300 ${
+            isRangeRoverImage ? "scale-[1.04]" : ""
+          } ${imgLoaded ? "opacity-100" : "opacity-0"}`}
           onLoad={() => setImgLoaded(true)}
         />
       </div>
@@ -554,6 +709,7 @@ function SliderCard({
   onClick: () => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const isRangeRoverImage = isRangeRoverGreenAsset(car.image);
 
   return (
     <div
@@ -570,7 +726,10 @@ function SliderCard({
           src={car.image}
           alt={car.name}
           fill
-          className={`object-contain pointer-events-none transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+          unoptimized={isRangeRoverImage}
+          className={`object-contain pointer-events-none transition-opacity duration-300 ${
+            isRangeRoverImage ? "scale-[1.04]" : ""
+          } ${imgLoaded ? "opacity-100" : "opacity-0"}`}
           draggable={false}
           onLoad={() => setImgLoaded(true)}
         />

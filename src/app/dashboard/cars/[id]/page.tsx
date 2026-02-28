@@ -16,8 +16,17 @@ import {
   MapPin,
 } from "lucide-react";
 import gsap from "gsap";
+import { CustomEase } from "gsap/dist/CustomEase";
+import { SplitText } from "gsap/dist/SplitText";
 import { findCarById, activeBookings } from "@/lib/cars";
 import type { LiveMapTrackerHandle } from "@/components/LiveMapTracker";
+
+gsap.registerPlugin(CustomEase, SplitText);
+
+const RYDE_EASE = CustomEase.create(
+  "rydeEase",
+  "M0,0 C0.38,0.05 0.48,0.58 0.65,0.82 0.82,1 1,1 1,1"
+);
 
 const LiveMapTrackerComponent = dynamic(
   () => import("@/components/LiveMapTracker"),
@@ -159,6 +168,10 @@ export default function CarDetailPage({
   const [showLoaderVisuals, setShowLoaderVisuals] = useState(false);
 
   const leftContentRef = useRef<HTMLDivElement>(null);
+  const detailH1Ref = useRef<HTMLHeadingElement>(null);
+  const detailDescRef = useRef<HTMLParagraphElement>(null);
+  const bookingH2Ref = useRef<HTMLHeadingElement>(null);
+  const bookingSubRef = useRef<HTMLParagraphElement>(null);
   const dayPanelRef = useRef<HTMLDivElement>(null);
   const timePanelRef = useRef<HTMLDivElement>(null);
   const bookingTimeoutsRef = useRef<number[]>([]);
@@ -243,48 +256,111 @@ export default function CarDetailPage({
       ? Array.from(dayPanelRef.current.querySelectorAll<HTMLElement>("[data-date-stagger]"))
       : [];
 
-    if (overlay) {
-      // Pre-hide content so it's invisible while the overlay dissolves.
-      if (leftEls.length) gsap.set(leftEls, { opacity: 0, y: 30 });
-      if (dateEls.length) gsap.set(dateEls, { opacity: 0, y: 20 });
+    // ── SplitText setup ──
+    const splits: InstanceType<typeof SplitText>[] = [];
 
-      // Fade the overlay out (expansion tween from dashboard keeps running
-      // concurrently — "bloom and dissolve"). Animate content in on complete.
+    function wrapLines(lines: Element[], inline = false) {
+      lines.forEach((line) => {
+        const wrap = document.createElement(inline ? "span" : "div");
+        wrap.style.cssText = inline
+          ? "display:inline-block;overflow:hidden;line-height:1;vertical-align:bottom;"
+          : "overflow:hidden;line-height:inherit;";
+        line.parentNode?.insertBefore(wrap, line);
+        wrap.appendChild(line);
+      });
+    }
+
+    let splitH1: InstanceType<typeof SplitText> | null = null;
+    let splitDesc: InstanceType<typeof SplitText> | null = null;
+    let splitBookingH2: InstanceType<typeof SplitText> | null = null;
+    let splitBookingSub: InstanceType<typeof SplitText> | null = null;
+
+    // Left panel h1 — char flip-in (same as dashboard hero)
+    // "words,chars" + nowrap on word spans prevents mid-word line breaks.
+    if (detailH1Ref.current) {
+      splitH1 = new SplitText(detailH1Ref.current, { type: "words,chars", aria: false });
+      splits.push(splitH1);
+      splitH1.words.forEach((w) => ((w as HTMLElement).style.whiteSpace = "nowrap"));
+      wrapLines(splitH1.chars, true);
+      gsap.set(splitH1.chars, { y: "100%", rotateX: 60, transformPerspective: 800, force3D: true });
+    }
+
+    // Left panel description — lines slide up
+    if (detailDescRef.current) {
+      splitDesc = new SplitText(detailDescRef.current, { type: "lines", aria: false });
+      splits.push(splitDesc);
+      wrapLines(splitDesc.lines);
+      gsap.set(splitDesc.lines, { y: "110%", force3D: true });
+    }
+
+    // Booking panel h2 — words slide up with fade
+    if (bookingH2Ref.current) {
+      splitBookingH2 = new SplitText(bookingH2Ref.current, { type: "words", aria: false });
+      splits.push(splitBookingH2);
+      wrapLines(splitBookingH2.words, true);
+      gsap.set(splitBookingH2.words, { y: "60%", opacity: 0, force3D: true });
+    }
+
+    // Booking panel sub-paragraph — lines slide up
+    if (bookingSubRef.current) {
+      splitBookingSub = new SplitText(bookingSubRef.current, { type: "lines", aria: false });
+      splits.push(splitBookingSub);
+      wrapLines(splitBookingSub.lines);
+      gsap.set(splitBookingSub.lines, { y: "110%", force3D: true });
+    }
+
+    // Pre-hide simple stagger elements
+    if (leftEls.length) gsap.set(leftEls, { opacity: 0, y: 30 });
+    if (dateEls.length) gsap.set(dateEls, { opacity: 0, y: 20 });
+
+    function animateIn(delay = 0) {
+      const tl = gsap.timeline({ defaults: { force3D: true } });
+
+      // Left: image, subtitle, specs — simple fade-up
+      if (leftEls.length) {
+        tl.to(leftEls, { opacity: 1, y: 0, duration: 0.55, stagger: 0.08, ease: "power2.out" }, delay);
+      }
+      // Left: h1 chars flip in
+      if (splitH1) {
+        tl.to(splitH1.chars, { y: 0, rotateX: 0, duration: 2.1, stagger: 0.035, ease: "expo.out" }, delay + 0.1);
+      }
+      // Left: description lines slide up
+      if (splitDesc) {
+        tl.to(splitDesc.lines, { y: 0, duration: 1.65, stagger: { amount: 0.08, from: "end" }, ease: "power3.out" }, delay + 0.45);
+      }
+
+      // Right: step label, progress bar, day buttons, next button
+      if (dateEls.length) {
+        tl.to(dateEls, { opacity: 1, y: 0, duration: 0.45, stagger: 0.06, ease: "power2.out" }, delay + 0.05);
+      }
+      // Right: booking h2 words
+      if (splitBookingH2) {
+        tl.to(splitBookingH2.words, { y: 0, opacity: 1, duration: 0.9, stagger: 0.04, ease: RYDE_EASE }, delay + 0.2);
+      }
+      // Right: booking sub-paragraph lines
+      if (splitBookingSub) {
+        tl.to(splitBookingSub.lines, { y: 0, duration: 1.1, stagger: { amount: 0.06, from: "end" }, ease: "power3.out" }, delay + 0.5);
+      }
+    }
+
+    if (overlay) {
       gsap.to(overlay, {
         opacity: 0,
         duration: 0.45,
         ease: "power1.in",
         onComplete: () => {
           overlay.remove();
-          if (leftEls.length) {
-            gsap.to(leftEls, {
-              opacity: 1, y: 0, duration: 0.55, stagger: 0.08,
-              ease: "power2.out",
-            });
-          }
-          if (dateEls.length) {
-            gsap.to(dateEls, {
-              opacity: 1, y: 0, duration: 0.45, stagger: 0.06,
-              ease: "power2.out", delay: 0.05,
-            });
-          }
+          animateIn();
         },
       });
     } else {
-      // Direct load (hard refresh / direct URL) — animate content in from below.
-      if (leftEls.length) {
-        gsap.from(leftEls, {
-          opacity: 0, y: 30, duration: 0.6, stagger: 0.1,
-          ease: "power2.out", delay: 0.15,
-        });
-      }
-      if (dateEls.length) {
-        gsap.from(dateEls, {
-          opacity: 0, y: 20, duration: 0.5, stagger: 0.07,
-          ease: "power2.out", delay: 0.2,
-        });
-      }
+      animateIn(0.15);
     }
+
+    return () => {
+      splits.forEach((s) => s.revert());
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cleanup timeouts on unmount
@@ -515,7 +591,7 @@ export default function CarDetailPage({
                 <p data-stagger className="text-[16px] text-white/50 uppercase tracking-widest mb-2">
                   {car.subtitle}
                 </p>
-                <h1 data-stagger className="text-[52px] font-britanica leading-[1.1] mb-6">
+                <h1 ref={detailH1Ref} className="text-[52px] font-britanica leading-[1.1] mb-6">
                   {car.name}
                 </h1>
 
@@ -527,7 +603,7 @@ export default function CarDetailPage({
                   <SpecItem icon={<Settings className="w-5 h-5" />} label="Transmission" value={car.transmission} />
                 </div>
 
-                <p data-stagger className="text-[15px] leading-[1.75] text-white/65">
+                <p ref={detailDescRef} className="text-[15px] leading-[1.75] text-white/65">
                   {car.description}
                 </p>
               </div>
@@ -643,10 +719,10 @@ export default function CarDetailPage({
               <div className="absolute inset-y-0 left-0 w-1/2 bg-white" />
             </div>
 
-            <h2 data-date-stagger className="text-[34px] font-britanica leading-[1.15] mb-3">
+            <h2 ref={bookingH2Ref} className="text-[34px] font-britanica leading-[1.15] mb-3">
               Hello Crispin!<br />Let&apos;s schedule your delivery:
             </h2>
-            <p data-date-stagger className="text-[15px] text-white/50 leading-[1.5] mb-10">
+            <p ref={bookingSubRef} className="text-[15px] text-white/50 leading-[1.5] mb-10">
               Pick the days that work best for you.
             </p>
 
