@@ -325,6 +325,8 @@ export default function DashboardPage() {
   const [loaded, setLoaded] = useState(_dashboardLoaded);
   const router = useRouter();
 
+  const pageRef = useRef<HTMLDivElement>(null);
+
   // Hero element refs for SplitText animations
   const heroEyebrowRef = useRef<HTMLParagraphElement>(null);
   const heroH1Ref = useRef<HTMLHeadingElement>(null);
@@ -443,44 +445,47 @@ export default function DashboardPage() {
   }, [loaded]);
 
   function handleCardClick(car: Car, el: HTMLDivElement) {
-    const rect = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
+    // Incoming overlay: full-screen, car's bg color, clipped away from the top.
+    // Reveals top-to-bottom as it animates to inset(0%).
     const overlay = document.createElement("div");
     overlay.className = "ryde-page-transition";
     Object.assign(overlay.style, {
       position: "fixed",
-      left: `${rect.left}px`,
-      top: `${rect.top}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
+      inset: "0",
       backgroundColor: car.bgHex,
-      borderRadius: "20px",
       zIndex: "9999",
       pointerEvents: "none",
-      transformOrigin: "center center",
     });
     document.body.appendChild(overlay);
 
-    const tx = vw / 2 - (rect.left + rect.width / 2);
-    const ty = vh / 2 - (rect.top + rect.height / 2);
+    // Start overlay off-screen below — slides up with no hard edge cutting across content
+    gsap.set(overlay, { y: "100%", force3D: true });
+
+    // Outgoing: dashboard scales down + fades as overlay rises over it
+    if (pageRef.current) {
+      gsap.to(pageRef.current, {
+        y: "-15vh",
+        scale: 0.9,
+        opacity: 0.3,
+        duration: 0.8,
+        ease: RYDE_EASE,
+        force3D: true,
+      });
+    }
+
+    // Incoming: slide up from below — smooth panel with no edge artefacts
     gsap.to(overlay, {
-      x: tx,
-      y: ty,
-      scaleX: vw / rect.width,
-      scaleY: vh / rect.height,
-      borderRadius: 0,
-      duration: 0.55,
-      ease: "power4.out",
-      // No onComplete removal — detail page owns cleanup via its fade-out
+      y: "0%",
+      duration: 0.8,
+      ease: RYDE_EASE,
+      force3D: true,
     });
 
-    setTimeout(() => router.push(`/dashboard/cars/${car.id}`), 220);
+    setTimeout(() => router.push(`/dashboard/cars/${car.id}`), 500);
   }
 
   return (
-    <div className="min-h-screen bg-[#222] text-white overflow-x-hidden">
+    <div ref={pageRef} className="min-h-screen bg-[#222] text-white overflow-x-hidden">
       {/* Navbar */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 flex items-center h-20 px-[68px] transition-[background-color,backdrop-filter] duration-300 ${

@@ -167,6 +167,7 @@ export default function CarDetailPage({
   const [bookingSelectionError, setBookingSelectionError] = useState("");
   const [showLoaderVisuals, setShowLoaderVisuals] = useState(false);
 
+  const carPageRef = useRef<HTMLDivElement>(null);
   const leftContentRef = useRef<HTMLDivElement>(null);
   const detailH1Ref = useRef<HTMLHeadingElement>(null);
   const detailDescRef = useRef<HTMLParagraphElement>(null);
@@ -344,10 +345,12 @@ export default function CarDetailPage({
     }
 
     if (overlay) {
+      // Kill any in-progress slide tween, then fade the overlay out.
+      gsap.killTweensOf(overlay);
       gsap.to(overlay, {
         opacity: 0,
-        duration: 0.45,
-        ease: "power1.in",
+        duration: 0.65,
+        ease: "power2.out",
         onComplete: () => {
           overlay.remove();
           animateIn();
@@ -483,15 +486,30 @@ export default function CarDetailPage({
     bookingTimeoutsRef.current.push(t1, t2, t3);
   }, [isAnimating, isBookingLoaderOpen, canBookNow, router]);
 
+  const navigateToDashboard = useCallback(() => {
+    const page = carPageRef.current;
+    if (page) {
+      gsap.to(page, {
+        y: "100%",
+        duration: 0.6,
+        ease: "power3.in",
+        force3D: true,
+        onComplete: () => router.push("/dashboard"),
+      });
+    } else {
+      router.push("/dashboard");
+    }
+  }, [router]);
+
   const handleBack = useCallback(() => {
-    if (isActiveBooking) { router.push("/dashboard"); return; }
+    if (isActiveBooking) { navigateToDashboard(); return; }
     if (isBookingLoaderOpen) return;
     if (bookingStep === 2) {
       slideBackToDaySelect();
     } else {
-      router.push("/dashboard");
+      navigateToDashboard();
     }
-  }, [isActiveBooking, isBookingLoaderOpen, bookingStep, slideBackToDaySelect, router]);
+  }, [isActiveBooking, isBookingLoaderOpen, bookingStep, slideBackToDaySelect, navigateToDashboard]);
 
   if (!car) {
     return (
@@ -511,7 +529,7 @@ export default function CarDetailPage({
   }
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: car.bgHex }}>
+    <div ref={carPageRef} className="min-h-screen text-white" style={{ backgroundColor: car.bgHex }}>
       {/* Main — full viewport height */}
       <div className="flex h-screen overflow-hidden">
         {/* ── Left: car info or booking loader images ── */}
@@ -693,7 +711,7 @@ export default function CarDetailPage({
               {/* Actions */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => router.push("/dashboard")}
+                  onClick={navigateToDashboard}
                   className="flex-1 h-[52px] border border-white/25 rounded-sm text-[15px] text-white/75 hover:bg-white/10 transition-colors"
                 >
                   Return Vehicle
